@@ -1,0 +1,6 @@
+{
+	"bat": {
+		"name": "Baseball Bat", "type": "melee", "icon": "wp_sword", "start": true,
+		"damage": 30, "cooldown": 0.5, "range": 32, "knockback": 320, "shake": 3.5
+	}
+}

@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK & Windows EXE
 
 on:
   push:
@@ -6,20 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build-game:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python and generate sprites (if script exists)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Pillow and generate sprites
+      - name: Run sprite generator safely
         run: |
-          pip install pillow
-          python tools/make_sprites.py
+          if [ -f "tools/make_sprites.py" ]; then
+            pip install pillow
+            python tools/make_sprites.py
+          elif [ -f "make_sprites.py" ]; then
+            pip install pillow
+            python make_sprites.py
+          else
+            echo "Sprite scripti bulunamadi, mevcut gorseller kullanilacak."
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -38,15 +45,15 @@ jobs:
 
       - name: Download Godot 4.3
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          wget -q https://github.com
           unzip -q Godot_v4.3-stable_linux.x86_64.zip
           chmod +x Godot_v4.3-stable_linux.x86_64
           sudo mv Godot_v4.3-stable_linux.x86_64 /usr/local/bin/godot
 
-      - name: Download Godot Android export templates
+      - name: Download Godot export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.3.stable
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          wget -q https://github.com
           unzip -q Godot_v4.3-stable_export_templates.tpz -d /tmp/templates
           mv /tmp/templates/templates/* ~/.local/share/godot/export_templates/4.3.stable/
 
@@ -57,7 +64,7 @@ jobs:
             -validity 10000 -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Create export presets
+      - name: Create export presets (Android & Windows)
         run: |
           cat > export_presets.cfg << 'EOF'
           [preset.0]
@@ -69,7 +76,7 @@ jobs:
           export_filter="all_resources"
           include_filter="*.json"
           exclude_filter=""
-          export_path="pixelmod.apk"
+          export_path="build/pixelmod.apk"
           encryption_include_filters=""
           encryption_exclude_filters=""
           encrypt_pck=false
@@ -97,49 +104,45 @@ jobs:
           screen/support_normal=true
           screen/support_large=true
           screen/support_xlarge=true
-          launcher_icons/main_192x192=""
-          launcher_icons/adaptive_foreground_432x432=""
-          launcher_icons/adaptive_background_432x432=""
-          graphics/opengl_debug=false
-          xr_features/xr_mode=0
-          xr_features/hand_tracking=0
-          xr_features/passthrough=0
           package/unique_name="com.pixelmod.game"
           package/name="PixelMod"
           package/signed=true
           package/classify_as_game=true
-          package/retain_data_on_uninstall=false
-          package/exclude_from_recents=false
-          package/show_as_launcher_app=false
-          package/show_in_android_tv=false
-          package/show_in_app_library=false
-          package/meta_quest=false
-          launcher_icons/adaptive_monochrome_432x432=""
           version/code=1
           version/name="1.0"
-          privacy/record_audio=false
-          privacy/camera=false
-          privacy/access_fine_location=false
-          privacy/access_coarse_location=false
+
+          [preset.1]
+          name="Windows Desktop"
+          platform="Windows Desktop"
+          runnable=true
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter="*.json"
+          exclude_filter=""
+          export_path="build/PixelModFighter.exe"
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false
+
+          [preset.1.options]
+          binary_format/embed_pck=true
+          binary_format/architecture="x86_64"
           EOF
 
-      - name: Export APK
-        run: |
-          godot --headless --export-debug "Android" pixelmod.apk 2>&1 || \
-          godot --headless --export-debug "Android" pixelmod.apk
+      - name: Import Godot project resources
+        run: godot --headless --import || true
 
-      - name: Upload APK artifact
+      - name: Export APK and EXE
+        run: |
+          mkdir -p build
+          godot --headless --export-debug "Android" build/pixelmod.apk
+          godot --headless --export-release "Windows Desktop" build/PixelModFighter.exe
+
+      - name: Upload Game Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PixelMod-Android
-          path: pixelmod.apk
+          name: PixelMod-APK-ve-EXE
+          path: build/
           if-no-files-found: warn
-
-      - name: Show result
-        run: |
-          if [ -f pixelmod.apk ]; then
-            echo "✅ APK başarıyla oluşturuldu!"
-            ls -lh pixelmod.apk
-          else
-            echo "❌ APK oluşturulamadı"
-          fi
